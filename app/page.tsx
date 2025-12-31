@@ -1,7 +1,17 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { Plus, Check, Loader2, ArrowRight, ShieldAlert, CheckCircle2 } from "lucide-react";
+import {
+  Plus,
+  Check,
+  Loader2,
+  ArrowRight,
+  ShieldAlert,
+  CheckCircle2,
+  RefreshCw,
+  Star,
+  Mic,
+} from "lucide-react";
 import { createBrowserClient } from "@supabase/auth-helpers-nextjs";
 import { useRouter } from "next/navigation";
 import confetti from "canvas-confetti";
@@ -16,26 +26,35 @@ import { AiCopilot } from "@/components/AiCopilot";
 import { VoiceCopilot } from "@/components/VoiceCopilot";
 import { ShameReport } from "@/components/ShameReport";
 import { Feedback } from "@/components/Feedback";
+import { TrendChart } from "@/components/TrendChart";
 import { calculateSafetyMoves } from "@/lib/calculations";
 import { formatCurrency } from "@/lib/utils";
-import { Mic } from "lucide-react";
+import type {
+  Profile,
+  IncomeEvent,
+  RecommendedMove,
+  YearlySummary,
+} from "@/lib/types";
+import type { User } from "@supabase/supabase-js";
 
 export default function Dashboard() {
   const [amount, setAmount] = useState("");
   const [source, setSource] = useState("");
   const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState<any>(null);
-  const [profile, setProfile] = useState<any>(null);
-  const [incomeEvents, setIncomeEvents] = useState<any[]>([]);
-  const [summary, setSummary] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [incomeEvents, setIncomeEvents] = useState<IncomeEvent[]>([]);
+  const [summary, setSummary] = useState<YearlySummary | null>(null);
   const [bankBalance, setBankBalance] = useState<number>(0);
-  const [pendingConfirmations, setPendingConfirmations] = useState<any[]>([]);
+  const [pendingConfirmations, setPendingConfirmations] = useState<
+    IncomeEvent[]
+  >([]);
   const [showPlaidLink, setShowPlaidLink] = useState(false);
   const [showMathDetail, setShowMathDetail] = useState(false);
-  
+
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [activeMove, setActiveMove] = useState<any>(null);
+  const [activeMove, setActiveMove] = useState<RecommendedMove | null>(null);
   const [isVoiceOpen, setIsVoiceOpen] = useState(false);
   const [isShameReportOpen, setIsShameReportOpen] = useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
@@ -46,54 +65,63 @@ export default function Dashboard() {
   );
   const router = useRouter();
 
-  const fetchData = useCallback(async (userId: string) => {
-    // Fetch profile
-    const { data: profileData } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single();
-    setProfile(profileData);
+  const fetchData = useCallback(
+    async (userId: string) => {
+      // Fetch profile
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", userId)
+        .single();
+      setProfile(profileData);
 
-    // Fetch income events and moves
-    const { data: events } = await supabase
-      .from('income_events')
-      .select(`
+      // Fetch income events and moves
+      const { data: events } = await supabase
+        .from("income_events")
+        .select(
+          `
         *,
         recommended_moves (*)
-      `)
-      .eq('user_id', userId)
-      .order('detected_at', { ascending: false });
-    
-    // Separate pending confirmations from confirmed events
-    const pending = events?.filter((e: any) => e.status === 'pending_confirmation') || [];
-    const confirmed = events?.filter((e: any) => e.status !== 'pending_confirmation') || [];
-    
-    setPendingConfirmations(pending);
-    setIncomeEvents(confirmed);
+      `
+        )
+        .eq("user_id", userId)
+        .order("detected_at", { ascending: false });
 
-    // Fetch summary (Panic Button)
-    const res = await fetch(`/api/summary?user_id=${userId}`);
-    const summaryData = await res.json();
-    setSummary(summaryData);
+      // Separate pending confirmations from confirmed events
+      const pending =
+        events?.filter((e: any) => e.status === "pending_confirmation") || [];
+      const confirmed =
+        events?.filter((e: any) => e.status !== "pending_confirmation") || [];
 
-    // Fetch real bank balance
-    try {
-      const balanceRes = await fetch(`/api/plaid/balance?user_id=${userId}`);
-      const balanceData = await balanceRes.json();
-      if (balanceData.total_balance !== undefined) {
-        setBankBalance(balanceData.total_balance);
+      setPendingConfirmations(pending);
+      setIncomeEvents(confirmed);
+
+      // Fetch summary (Panic Button)
+      const res = await fetch(`/api/summary?user_id=${userId}`);
+      const summaryData = await res.json();
+      setSummary(summaryData);
+
+      // Fetch real bank balance
+      try {
+        const balanceRes = await fetch(`/api/plaid/balance?user_id=${userId}`);
+        const balanceData = await balanceRes.json();
+        if (balanceData.total_balance !== undefined) {
+          setBankBalance(balanceData.total_balance);
+        }
+      } catch (err) {
+        console.error("Failed to fetch balance:", err);
       }
-    } catch (err) {
-      console.error('Failed to fetch balance:', err);
-    }
 
-    setLoading(false);
-  }, [supabase]);
+      setLoading(false);
+    },
+    [supabase]
+  );
 
   useEffect(() => {
     const checkUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       if (!session) {
         router.push("/login");
       } else {
@@ -105,17 +133,17 @@ export default function Dashboard() {
   }, [supabase, router, fetchData]);
 
   const handleManualEntry = async () => {
-    if (!amount) return;
+    if (!amount || !user) return;
     setLoading(true);
 
-    const res = await fetch('/api/income', {
-      method: 'POST',
+    const res = await fetch("/api/income", {
+      method: "POST",
       body: JSON.stringify({
         user_id: user.id,
         amount: parseFloat(amount),
         description: source,
-        tax_rate: profile?.tax_rate_percentage * 100 || 30,
-        retirement_rate: profile?.retirement_rate_percentage * 100 || 10,
+        tax_rate: (profile?.tax_rate_percentage ?? 0.3) * 100,
+        retirement_rate: (profile?.retirement_rate_percentage ?? 0.1) * 100,
       }),
     });
 
@@ -127,16 +155,17 @@ export default function Dashboard() {
         particleCount: 150,
         spread: 100,
         origin: { y: 0.6 },
-        colors: ['#4f46e5', '#10b981', '#f59e0b', '#ffffff']
+        colors: ["#4f46e5", "#10b981", "#f59e0b", "#ffffff"],
       });
     }
     setLoading(false);
   };
 
   const onConfirmMove = async (moveId: string) => {
+    if (!user) return;
     const res = await fetch(`/api/moves/${moveId}`, {
-      method: 'PUT',
-      body: JSON.stringify({ completion_method: 'confirmed' }),
+      method: "PUT",
+      body: JSON.stringify({ completion_method: "confirmed" }),
     });
 
     if (res.ok) {
@@ -146,22 +175,23 @@ export default function Dashboard() {
         particleCount: 200,
         spread: 160,
         origin: { y: 0.6 },
-        colors: ['#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#ffffff']
+        colors: ["#4f46e5", "#10b981", "#f59e0b", "#ef4444", "#ffffff"],
       });
       // Show feedback modal after success
       setTimeout(() => setShowFeedbackModal(true), 1500);
     }
   };
 
-  const openConfirmation = (move: any) => {
+  const openConfirmation = (move: RecommendedMove) => {
     setActiveMove(move);
     setIsModalOpen(true);
   };
 
   const handleIncomeConfirm = async (incomeEventId: string) => {
-    const res = await fetch('/api/income/confirm', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    if (!user) return;
+    const res = await fetch("/api/income/confirm", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         income_event_id: incomeEventId,
         user_id: user.id,
@@ -175,15 +205,16 @@ export default function Dashboard() {
         particleCount: 100,
         spread: 70,
         origin: { y: 0.6 },
-        colors: ['#10b981', '#6366f1', '#f59e0b']
+        colors: ["#10b981", "#6366f1", "#f59e0b"],
       });
     }
   };
 
   const handleIncomeReject = async (incomeEventId: string) => {
-    await fetch('/api/income/confirm', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    if (!user) return;
+    await fetch("/api/income/confirm", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         income_event_id: incomeEventId,
         user_id: user.id,
@@ -194,23 +225,40 @@ export default function Dashboard() {
   };
 
   const handlePlaidSuccess = async () => {
+    if (!user) return;
     setShowPlaidLink(false);
     await fetchData(user.id);
   };
 
   // Calculate Hero Metrics
   const pendingTax = incomeEvents.reduce((acc: number, event: any) => {
-    return acc + (event.recommended_moves?.filter((m: any) => m.bucket_name === 'Tax' && !m.completed_at)
-      .reduce((sum: number, m: any) => sum + Number(m.amount_to_move), 0) || 0);
+    return (
+      acc +
+      (event.recommended_moves
+        ?.filter((m: any) => m.bucket_name === "Tax" && !m.completed_at)
+        .reduce((sum: number, m: any) => sum + Number(m.amount_to_move), 0) ||
+        0)
+    );
   }, 0);
 
   const pendingRetirement = incomeEvents.reduce((acc: number, event: any) => {
-    return acc + (event.recommended_moves?.filter((m: any) => m.bucket_name === 'Retirement' && !m.completed_at)
-      .reduce((sum: number, m: any) => sum + Number(m.amount_to_move), 0) || 0);
+    return (
+      acc +
+      (event.recommended_moves
+        ?.filter((m: any) => m.bucket_name === "Retirement" && !m.completed_at)
+        .reduce((sum: number, m: any) => sum + Number(m.amount_to_move), 0) ||
+        0)
+    );
   }, 0);
 
-  const safeToSpend = bankBalance - pendingTax - pendingRetirement - (profile?.minimum_buffer || 1000);
-  const pendingCount = incomeEvents.filter((e: any) => e.status === 'pending_action').length;
+  const safeToSpend =
+    bankBalance -
+    pendingTax -
+    pendingRetirement -
+    (profile?.minimum_buffer || 1000);
+  const pendingCount = incomeEvents.filter(
+    (e: any) => e.status === "pending_action"
+  ).length;
 
   useEffect(() => {
     if (pendingTax > 2000) {
@@ -230,8 +278,23 @@ export default function Dashboard() {
   return (
     <AppShell pendingCount={pendingCount}>
       <div className="space-y-6 animate-in pb-12">
+        {/* Sync Header */}
+        <div className="flex items-center justify-between px-1 mb-2">
+          <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">
+            Live Status
+          </h3>
+          <button
+            onClick={() => user && fetchData(user.id)}
+            disabled={loading}
+            className="flex items-center gap-2 text-[10px] font-black text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-full hover:bg-indigo-600 hover:text-white transition-all disabled:opacity-50"
+          >
+            <RefreshCw className={`w-3 h-3 ${loading ? "animate-spin" : ""}`} />
+            {loading ? "Watching Plaid..." : "Sync Bank"}
+          </button>
+        </div>
+
         <div className="relative">
-          <SafeToSpend 
+          <SafeToSpend
             amount={safeToSpend}
             bankBalance={bankBalance}
             totalLiabilities={pendingTax + pendingRetirement}
@@ -239,7 +302,7 @@ export default function Dashboard() {
             showMathDetail={showMathDetail}
             onToggleMath={() => setShowMathDetail(!showMathDetail)}
           />
-          <button 
+          <button
             onClick={() => setIsVoiceOpen(true)}
             className="absolute top-6 right-6 bg-white/10 p-3 rounded-2xl hover:bg-white/20 transition-all active:scale-90 text-white"
           >
@@ -248,20 +311,27 @@ export default function Dashboard() {
         </div>
 
         {/* AI Copilot Insights */}
-        <AiCopilot 
-          safeToSpend={safeToSpend} 
-          taxLiabilities={pendingTax} 
-          savingsTotal={bankBalance - safeToSpend} 
+        <AiCopilot
+          safeToSpend={safeToSpend}
+          taxLiabilities={pendingTax}
+          savingsTotal={bankBalance - safeToSpend}
         />
 
         {/* Panic Button Section */}
         {summary && (
-          <PanicButton 
-            totalIncome={summary.total_income}
-            shouldHaveSaved={summary.total_tax_should_save}
-            actuallySaved={summary.total_tax_actually_saved}
-            onViewBreakdown={() => router.push('/history')}
-          />
+          <div className="space-y-6">
+            <PanicButton
+              totalIncome={summary.total_income}
+              shouldHaveSaved={summary.total_tax_should_save}
+              actuallySaved={summary.total_tax_actually_saved}
+              onViewBreakdown={() => router.push("/audit")}
+            />
+            <TrendChart
+              incomeEvents={incomeEvents}
+              title="Savings Progress"
+              showLegend={false}
+            />
+          </div>
         )}
 
         {/* Manual Entry Form */}
@@ -272,21 +342,25 @@ export default function Dashboard() {
           </h2>
           <div className="space-y-4">
             <div>
-              <label className="block text-[10px] font-black mb-2 text-gray-400 uppercase tracking-widest">Amount ($)</label>
-              <input 
-                type="number" 
-                className="input input-lg" 
-                placeholder="0.00" 
+              <label className="block text-[10px] font-black mb-2 text-gray-400 uppercase tracking-widest">
+                Amount ($)
+              </label>
+              <input
+                type="number"
+                className="input input-lg"
+                placeholder="0.00"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
               />
             </div>
             <div>
-              <label className="block text-[10px] font-black mb-2 text-gray-400 uppercase tracking-widest">Source</label>
-              <input 
-                type="text" 
-                className="input" 
-                placeholder="e.g. Client Payment, Consulting" 
+              <label className="block text-[10px] font-black mb-2 text-gray-400 uppercase tracking-widest">
+                Source
+              </label>
+              <input
+                type="text"
+                className="input"
+                placeholder="e.g. Client Payment, Consulting"
                 value={source}
                 onChange={(e) => setSource(e.target.value)}
               />
@@ -296,28 +370,38 @@ export default function Dashboard() {
               <div className="p-5 bg-indigo-50 rounded-2xl space-y-3 border border-indigo-100 animate-in">
                 {(() => {
                   const moves = calculateSafetyMoves(
-                    parseFloat(amount), 
-                    profile?.tax_rate_percentage * 100 || 30, 
-                    profile?.retirement_rate_percentage * 100 || 10
+                    parseFloat(amount),
+                    (profile?.tax_rate_percentage ?? 0.3) * 100,
+                    (profile?.retirement_rate_percentage ?? 0.1) * 100
                   );
                   return (
                     <>
                       <div className="flex justify-between text-sm">
-                        <span className="text-gray-500 font-medium">Tax Vault:</span>
-                        <span className="font-black text-red-600">{formatCurrency(moves.tax)}</span>
+                        <span className="text-gray-500 font-medium">
+                          Tax Vault:
+                        </span>
+                        <span className="font-black text-red-600">
+                          {formatCurrency(moves.tax)}
+                        </span>
                       </div>
                       <div className="flex justify-between text-sm">
-                        <span className="text-gray-500 font-medium">Retirement:</span>
-                        <span className="font-black text-indigo-600">{formatCurrency(moves.retirement)}</span>
+                        <span className="text-gray-500 font-medium">
+                          Retirement:
+                        </span>
+                        <span className="font-black text-indigo-600">
+                          {formatCurrency(moves.retirement)}
+                        </span>
                       </div>
                       <div className="flex justify-between text-lg font-black border-t border-indigo-200 pt-3 mt-3">
-                         <span className="text-gray-900">Safe to Spend:</span>
-                         <span className="text-emerald-600">{formatCurrency(moves.safe)}</span>
+                        <span className="text-gray-900">Safe to Spend:</span>
+                        <span className="text-emerald-600">
+                          {formatCurrency(moves.safe)}
+                        </span>
                       </div>
                     </>
                   );
                 })()}
-                <button 
+                <button
                   onClick={handleManualEntry}
                   disabled={loading}
                   className="w-full mt-2 py-4 bg-indigo-600 text-white font-black rounded-[1.5rem] flex items-center justify-center gap-2 hover:bg-indigo-700 active:scale-95 transition-all shadow-lg shadow-indigo-100 disabled:opacity-50"
@@ -381,8 +465,8 @@ export default function Dashboard() {
               <ShieldAlert className="w-3.5 h-3.5 text-red-500" />
               Recent Activity
             </h3>
-            <button 
-              onClick={() => router.push('/history')}
+            <button
+              onClick={() => router.push("/history")}
               className="text-indigo-600 text-[10px] font-black uppercase tracking-widest hover:underline"
             >
               View All
@@ -390,21 +474,36 @@ export default function Dashboard() {
           </div>
           <div className="space-y-4">
             {incomeEvents.slice(0, 5).map((event: any) => {
-              const taxMove = event.recommended_moves?.find((m: any) => m.bucket_name === 'Tax');
-              const retMove = event.recommended_moves?.find((m: any) => m.bucket_name === 'Retirement');
-              
+              const taxMove = event.recommended_moves?.find(
+                (m: any) => m.bucket_name === "Tax"
+              );
+              const retMove = event.recommended_moves?.find(
+                (m: any) => m.bucket_name === "Retirement"
+              );
+
               return (
                 <IncomeCard
                   key={event.id}
                   id={event.id}
                   amount={event.amount}
-                  source={event.description || 'Income'}
-                  date={new Date(event.detected_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  source={event.description || "Income"}
+                  date={new Date(event.detected_at).toLocaleDateString(
+                    "en-US",
+                    { month: "short", day: "numeric", year: "numeric" }
+                  )}
                   taxAmount={taxMove?.amount_to_move || 0}
                   retirementAmount={retMove?.amount_to_move || 0}
                   status={event.status}
                   onConfirm={() => openConfirmation(taxMove)}
-                  onIgnore={() => console.log('ignore')}
+                  onIgnore={async () => {
+                    if (!user) return;
+                    // Dismiss the income event
+                    await supabase
+                      .from("income_events")
+                      .update({ status: "dismissed" })
+                      .eq("id", event.id);
+                    await fetchData(user.id);
+                  }}
                 />
               );
             })}
@@ -413,18 +512,56 @@ export default function Dashboard() {
                 <div className="bg-white w-16 h-16 rounded-[1.5rem] flex items-center justify-center mx-auto mb-4 shadow-lg">
                   <CheckCircle2 className="w-8 h-8 text-gray-300" />
                 </div>
-                <p className="text-gray-400 font-medium">No income tracked yet.</p>
-                <p className="text-gray-300 text-sm mt-1">Add your first payment above!</p>
+                <p className="text-gray-400 font-medium">
+                  No income tracked yet.
+                </p>
+                <p className="text-gray-300 text-sm mt-1">
+                  Add your first payment above!
+                </p>
               </div>
             )}
           </div>
         </section>
 
+        {/* Growth Card - Phase 4 */}
+        <div className="bg-indigo-950 rounded-[2.5rem] p-8 text-white space-y-4 shadow-xl shadow-indigo-100">
+          <div className="flex justify-between items-center">
+            <h4 className="text-[10px] font-black uppercase tracking-widest text-indigo-400">
+              Phase 4: Growth
+            </h4>
+            <Star className="w-4 h-4 text-indigo-400" strokeWidth={3} />
+          </div>
+          <p className="text-lg font-black leading-tight">
+            Help 5 friends stay tax-safe and get 3 months of Pro.
+          </p>
+          <button
+            onClick={() => {
+              const url =
+                window.location.origin +
+                "?ref=" +
+                (user?.id?.split("-")[0] || "friend");
+              navigator.clipboard.writeText(url);
+              // We can use a toast here if available, but for now we rely on the visual feedback or just the action
+              alert("Referral link copied to clipboard!");
+            }}
+            className="w-full py-4 bg-white text-indigo-950 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-indigo-50 transition-all active:scale-95"
+          >
+            <ArrowRight className="w-4 h-4" /> Copy Referral Link
+          </button>
+        </div>
+
         {/* Gamification Badges */}
+
         <div className="flex gap-2 overflow-x-auto pb-4 mt-4">
-          <div className="badge badge-green flex-shrink-0 border border-green-200">💪 Tax Ninja</div>
-          <div className="badge badge-amber flex-shrink-0 border border-amber-200">🏆 Golden Saver</div>
-          <div className="badge badge-indigo flex-shrink-0 border border-indigo-200">🎉 Consistent</div>
+          <div className="badge badge-green flex-shrink-0 border border-green-200">
+            💪 Tax Ninja
+          </div>
+          <div className="badge badge-amber flex-shrink-0 border border-amber-200">
+            🏆 Golden Saver
+          </div>
+          <div className="badge badge-indigo flex-shrink-0 border border-indigo-200">
+            🎉 Consistent
+          </div>
         </div>
       </div>
 
@@ -442,21 +579,26 @@ export default function Dashboard() {
       )}
 
       {/* Copilot & Shame Features */}
-      <VoiceCopilot 
-        isOpen={isVoiceOpen} 
-        onClose={() => setIsVoiceOpen(false)} 
-        context={{ safeToSpend, taxLiabilities: pendingTax, totalSavings: bankBalance - safeToSpend }}
+      <VoiceCopilot
+        isOpen={isVoiceOpen}
+        onClose={() => setIsVoiceOpen(false)}
+        context={{
+          safeToSpend,
+          taxLiabilities: pendingTax,
+          totalSavings: bankBalance - safeToSpend,
+        }}
       />
 
-      <ShameReport 
-        amount={pendingTax} 
-        isOpen={isShameReportOpen} 
-        onClose={() => setIsShameReportOpen(false)} 
+      <ShameReport
+        amount={pendingTax}
+        isOpen={isShameReportOpen}
+        onClose={() => setIsShameReportOpen(false)}
       />
 
-      <Feedback 
-        isOpen={showFeedbackModal} 
-        onClose={() => setShowFeedbackModal(false)} 
+      <Feedback
+        isOpen={showFeedbackModal}
+        onClose={() => setShowFeedbackModal(false)}
+        userId={user?.id}
       />
     </AppShell>
   );

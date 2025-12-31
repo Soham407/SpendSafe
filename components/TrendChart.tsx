@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import React, { useMemo } from 'react';
+import React, { useMemo } from "react";
 import {
   AreaChart,
   Area,
@@ -10,19 +10,9 @@ import {
   Tooltip,
   ResponsiveContainer,
   Legend,
-} from 'recharts';
-import { TrendingUp, Calendar } from 'lucide-react';
-
-interface IncomeEvent {
-  id: string;
-  amount: number;
-  detected_at: string;
-  recommended_moves?: {
-    bucket_name: string;
-    amount_to_move: number;
-    completed_at?: string;
-  }[];
-}
+} from "recharts";
+import { TrendingUp, Calendar } from "lucide-react";
+import type { IncomeEvent } from "@/lib/types";
 
 interface TrendChartProps {
   incomeEvents: IncomeEvent[];
@@ -45,8 +35,8 @@ const CustomTooltip = ({ active, payload, label }: any) => {
         <p className="font-black text-gray-900 mb-2">{label}</p>
         {payload.map((entry: any, index: number) => (
           <div key={index} className="flex items-center gap-2 text-sm">
-            <div 
-              className="w-3 h-3 rounded-full" 
+            <div
+              className="w-3 h-3 rounded-full"
               style={{ backgroundColor: entry.color }}
             />
             <span className="text-gray-500">{entry.name}:</span>
@@ -61,19 +51,22 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return null;
 };
 
-export const TrendChart: React.FC<TrendChartProps> = ({ 
-  incomeEvents, 
+export const TrendChart: React.FC<TrendChartProps> = ({
+  incomeEvents,
   title = "Income & Savings Trends",
-  showLegend = true 
+  showLegend = true,
 }) => {
   const chartData = useMemo(() => {
     // Group by month
     const monthlyData: Record<string, ChartDataPoint> = {};
-    
-    incomeEvents.forEach(event => {
+
+    incomeEvents.forEach((event) => {
       const date = new Date(event.detected_at);
-      const monthKey = date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
-      
+      const monthKey = date.toLocaleDateString("en-US", {
+        month: "short",
+        year: "2-digit",
+      });
+
       if (!monthlyData[monthKey]) {
         monthlyData[monthKey] = {
           month: monthKey,
@@ -83,30 +76,30 @@ export const TrendChart: React.FC<TrendChartProps> = ({
           taxTarget: 0,
         };
       }
-      
+
       monthlyData[monthKey].income += Number(event.amount);
-      
-      event.recommended_moves?.forEach(move => {
-        if (move.bucket_name === 'Tax') {
+
+      event.recommended_moves?.forEach((move) => {
+        if (move.bucket_name === "Tax") {
           monthlyData[monthKey].taxTarget += Number(move.amount_to_move);
           if (move.completed_at) {
             monthlyData[monthKey].taxSaved += Number(move.amount_to_move);
           }
         }
-        if (move.bucket_name === 'Retirement' && move.completed_at) {
+        if (move.bucket_name === "Retirement" && move.completed_at) {
           monthlyData[monthKey].retirementSaved += Number(move.amount_to_move);
         }
       });
     });
-    
+
     // Sort by date and take last 6 months
     const sortedMonths = Object.keys(monthlyData).sort((a, b) => {
       const dateA = new Date(a);
       const dateB = new Date(b);
       return dateA.getTime() - dateB.getTime();
     });
-    
-    return sortedMonths.slice(-6).map(key => monthlyData[key]);
+
+    return sortedMonths.slice(-6).map((key) => monthlyData[key]);
   }, [incomeEvents]);
 
   if (chartData.length === 0) {
@@ -115,8 +108,12 @@ export const TrendChart: React.FC<TrendChartProps> = ({
         <div className="bg-white w-16 h-16 rounded-[1.5rem] flex items-center justify-center mx-auto mb-4 shadow-lg">
           <Calendar className="w-8 h-8 text-gray-300" />
         </div>
-        <p className="text-gray-400 font-medium">Not enough data for trends yet</p>
-        <p className="text-gray-300 text-sm mt-1">Track more income to see your progress!</p>
+        <p className="text-gray-400 font-medium">
+          Not enough data for trends yet
+        </p>
+        <p className="text-gray-300 text-sm mt-1">
+          Track more income to see your progress!
+        </p>
       </div>
     );
   }
@@ -129,10 +126,12 @@ export const TrendChart: React.FC<TrendChartProps> = ({
         </div>
         <div>
           <h3 className="font-black text-gray-900">{title}</h3>
-          <p className="text-xs text-gray-400 font-medium">Last 6 months overview</p>
+          <p className="text-xs text-gray-400 font-medium">
+            Last 6 months overview
+          </p>
         </div>
       </div>
-      
+
       <div className="h-64 w-full">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart
@@ -148,30 +147,38 @@ export const TrendChart: React.FC<TrendChartProps> = ({
                 <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
                 <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
               </linearGradient>
-              <linearGradient id="retirementGradient" x1="0" y1="0" x2="0" y2="1">
+              <linearGradient
+                id="retirementGradient"
+                x1="0"
+                y1="0"
+                x2="0"
+                y2="1"
+              >
                 <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3} />
                 <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-            <XAxis 
-              dataKey="month" 
-              tick={{ fontSize: 11, fill: '#94a3b8', fontWeight: 600 }}
+            <XAxis
+              dataKey="month"
+              tick={{ fontSize: 11, fill: "#94a3b8", fontWeight: 600 }}
               tickLine={false}
               axisLine={false}
             />
-            <YAxis 
-              tick={{ fontSize: 10, fill: '#94a3b8' }}
+            <YAxis
+              tick={{ fontSize: 10, fill: "#94a3b8" }}
               tickLine={false}
               axisLine={false}
               tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
             />
             <Tooltip content={<CustomTooltip />} />
             {showLegend && (
-              <Legend 
-                wrapperStyle={{ paddingTop: '20px' }}
+              <Legend
+                wrapperStyle={{ paddingTop: "20px" }}
                 formatter={(value) => (
-                  <span className="text-xs font-bold text-gray-500">{value}</span>
+                  <span className="text-xs font-bold text-gray-500">
+                    {value}
+                  </span>
                 )}
               />
             )}
@@ -182,8 +189,8 @@ export const TrendChart: React.FC<TrendChartProps> = ({
               stroke="#6366f1"
               strokeWidth={3}
               fill="url(#incomeGradient)"
-              dot={{ fill: '#6366f1', strokeWidth: 2, r: 4 }}
-              activeDot={{ r: 6, stroke: '#fff', strokeWidth: 2 }}
+              dot={{ fill: "#6366f1", strokeWidth: 2, r: 4 }}
+              activeDot={{ r: 6, stroke: "#fff", strokeWidth: 2 }}
             />
             <Area
               type="monotone"
@@ -192,7 +199,7 @@ export const TrendChart: React.FC<TrendChartProps> = ({
               stroke="#10b981"
               strokeWidth={2}
               fill="url(#taxGradient)"
-              dot={{ fill: '#10b981', strokeWidth: 2, r: 3 }}
+              dot={{ fill: "#10b981", strokeWidth: 2, r: 3 }}
             />
             <Area
               type="monotone"
@@ -201,30 +208,42 @@ export const TrendChart: React.FC<TrendChartProps> = ({
               stroke="#f59e0b"
               strokeWidth={2}
               fill="url(#retirementGradient)"
-              dot={{ fill: '#f59e0b', strokeWidth: 2, r: 3 }}
+              dot={{ fill: "#f59e0b", strokeWidth: 2, r: 3 }}
             />
           </AreaChart>
         </ResponsiveContainer>
       </div>
-      
+
       {/* Quick Stats */}
       <div className="grid grid-cols-3 gap-3 mt-6 pt-6 border-t border-gray-100">
         <div className="text-center">
-          <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Avg Monthly</p>
+          <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">
+            Avg Monthly
+          </p>
           <p className="text-lg font-black text-indigo-600">
-            ${Math.round(chartData.reduce((a, b) => a + b.income, 0) / chartData.length).toLocaleString()}
+            $
+            {Math.round(
+              chartData.reduce((a, b) => a + b.income, 0) / chartData.length
+            ).toLocaleString()}
           </p>
         </div>
         <div className="text-center">
-          <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Tax Saved</p>
+          <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">
+            Tax Saved
+          </p>
           <p className="text-lg font-black text-emerald-600">
             ${chartData.reduce((a, b) => a + b.taxSaved, 0).toLocaleString()}
           </p>
         </div>
         <div className="text-center">
-          <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Retirement</p>
+          <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">
+            Retirement
+          </p>
           <p className="text-lg font-black text-amber-600">
-            ${chartData.reduce((a, b) => a + b.retirementSaved, 0).toLocaleString()}
+            $
+            {chartData
+              .reduce((a, b) => a + b.retirementSaved, 0)
+              .toLocaleString()}
           </p>
         </div>
       </div>

@@ -1,0 +1,7 @@
+{
+  "name": "1099 Wealth Builder",
+  "description": "A financial copilot for freelancers to track income, calculate tax liabilities, and ensure a 'Safe to Spend' balance with read-only bank syncing.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}

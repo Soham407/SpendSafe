@@ -1,48 +1,68 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { ArrowLeft, Save, Loader2, Bell, Percent, Shield, LogOut, ChevronRight, Sparkles, Lock } from "lucide-react";
-import Link from "next/link";
+import {
+  Save,
+  Loader2,
+  Bell,
+  Percent,
+  Shield,
+  LogOut,
+  Sparkles,
+  Lock,
+} from "lucide-react";
 import { createBrowserClient } from "@supabase/auth-helpers-nextjs";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { TrustCenter } from "@/components/TrustCenter";
+import { SecuritySetup } from "@/components/SecuritySetup";
+import { useToast } from "@/components/Toast";
+import type { Profile } from "@/lib/types";
 
 export default function SettingsPage() {
   const [taxRate, setTaxRate] = useState(30);
   const [retirementRate, setRetirementRate] = useState(10);
   const [minimumBuffer, setMinimumBuffer] = useState(1000);
-  const [notificationPref, setNotificationPref] = useState<'sms' | 'email' | 'both'>('email');
+  const [notificationPref, setNotificationPref] = useState<
+    "sms" | "email" | "both"
+  >("email");
   const [loading, setLoading] = useState(false);
   const [saved, setSaved] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
   const [phoneNumber, setPhoneNumber] = useState("");
   const [showTrustCenter, setShowTrustCenter] = useState(false);
+  const [is2FAShowing, setIs2FAShowing] = useState(false);
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
   const router = useRouter();
+  const { showToast } = useToast();
 
   useEffect(() => {
     const fetchProfile = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       if (session) {
         setUser(session.user);
         const { data: profile } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
+          .from("profiles")
+          .select("*")
+          .eq("id", session.user.id)
           .single();
-        
+
         if (profile) {
           setProfile(profile);
           setTaxRate(profile.tax_rate_percentage * 100);
           setRetirementRate(profile.retirement_rate_percentage * 100);
           setMinimumBuffer(profile.minimum_buffer || 1000);
-          setNotificationPref(profile.notification_preference || 'email');
+          setNotificationPref(
+            (profile.notification_preference as "sms" | "email" | "both") ||
+              "email"
+          );
           setPhoneNumber(profile.phone_number || "");
         }
       }
@@ -54,9 +74,9 @@ export default function SettingsPage() {
     if (!user) return;
     setLoading(true);
     setSaved(false);
-    
+
     const { error } = await supabase
-      .from('profiles')
+      .from("profiles")
       .update({
         tax_rate_percentage: taxRate / 100,
         retirement_rate_percentage: retirementRate / 100,
@@ -64,7 +84,7 @@ export default function SettingsPage() {
         notification_preference: notificationPref,
         phone_number: phoneNumber,
       })
-      .eq('id', user.id);
+      .eq("id", user.id);
 
     setLoading(false);
     if (!error) {
@@ -75,7 +95,7 @@ export default function SettingsPage() {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    router.push('/login');
+    router.push("/login");
   };
 
   return (
@@ -84,7 +104,9 @@ export default function SettingsPage() {
         {/* Header */}
         <div className="space-y-1">
           <h1 className="text-2xl font-black text-gray-900">Settings</h1>
-          <p className="text-sm text-gray-400 font-medium">Customize your SpendSafe experience</p>
+          <p className="text-sm text-gray-400 font-medium">
+            Customize your SpendSafe experience
+          </p>
         </div>
 
         {/* Tax & Retirement Rates */}
@@ -94,7 +116,8 @@ export default function SettingsPage() {
             Savings Rates
           </h2>
           <p className="text-xs text-gray-400 font-medium mb-6">
-            Adjust based on your CPA's guidance. Default is 30% for taxes and 10% for retirement.
+            Adjust based on your CPA's guidance. Default is 30% for taxes and
+            10% for retirement.
           </p>
 
           <div className="space-y-6">
@@ -174,44 +197,71 @@ export default function SettingsPage() {
 
           <div className="space-y-4">
             <div>
-              <label className="block text-[10px] font-black mb-2 text-gray-400 uppercase tracking-widest">Phone Number (for SMS Nudges)</label>
-              <input 
-                type="tel" 
-                className="input" 
-                placeholder="+11234567890" 
+              <label className="block text-[10px] font-black mb-2 text-gray-400 uppercase tracking-widest">
+                Phone Number (for SMS Nudges)
+              </label>
+              <input
+                type="tel"
+                className="input"
+                placeholder="+11234567890"
                 value={phoneNumber}
                 onChange={(e) => setPhoneNumber(e.target.value)}
               />
             </div>
 
             <div className="space-y-3">
-            {(['email', 'sms', 'both'] as const).map((pref) => (
-              <label
-                key={pref}
-                className={`flex items-center justify-between p-4 rounded-2xl border-2 cursor-pointer transition-all ${
-                  notificationPref === pref
-                    ? 'border-indigo-500 bg-indigo-50'
-                    : 'border-gray-100 hover:border-gray-200'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <input
-                    type="radio"
-                    name="notification"
-                    value={pref}
-                    checked={notificationPref === pref}
-                    onChange={() => setNotificationPref(pref)}
-                    className="accent-indigo-600 w-4 h-4"
-                  />
-                  <span className="font-bold text-gray-800 capitalize">
-                    {pref === 'both' ? 'SMS & Email' : pref.toUpperCase()}
-                  </span>
-                </div>
-                {notificationPref === pref && (
-                  <Sparkles className="w-4 h-4 text-indigo-500" />
-                )}
-              </label>
-            ))}
+              {(["email", "sms", "both"] as const).map((pref) => (
+                <label
+                  key={pref}
+                  className={`flex items-center justify-between p-4 rounded-2xl border-2 cursor-pointer transition-all ${
+                    notificationPref === pref
+                      ? "border-indigo-500 bg-indigo-50"
+                      : "border-gray-100 hover:border-gray-200"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="radio"
+                      name="notification"
+                      value={pref}
+                      checked={notificationPref === pref}
+                      onChange={() => setNotificationPref(pref)}
+                      className="accent-indigo-600 w-4 h-4"
+                    />
+                    <span className="font-bold text-gray-800 capitalize">
+                      {pref === "both" ? "SMS & Email" : pref.toUpperCase()}
+                    </span>
+                  </div>
+                  {notificationPref === pref && (
+                    <Sparkles className="w-4 h-4 text-indigo-500" />
+                  )}
+                </label>
+              ))}
+              {notificationPref !== "email" && (
+                <button
+                  onClick={async () => {
+                    if (!user || !phoneNumber) {
+                      showToast("Please save a phone number first!", "error");
+                      return;
+                    }
+                    setLoading(true);
+                    try {
+                      // This is a placeholder for actual test nudge logic
+                      showToast(
+                        "Test nudge sent to " + phoneNumber + "! (Simulation)",
+                        "success"
+                      );
+                    } catch (e) {
+                      console.error(e);
+                    }
+                    setLoading(false);
+                  }}
+                  className="w-full py-3 bg-gray-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-black transition-all mt-4 active:scale-95"
+                >
+                  <Sparkles className="w-3 h-3 text-amber-400" /> Send Test
+                  Nudge
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -222,34 +272,59 @@ export default function SettingsPage() {
             <Shield className="w-5 h-5 text-indigo-600" />
             Security
           </h2>
-          
-          <button 
+
+          <button
             onClick={async () => {
-              const newState = !profile?.two_factor_enabled;
-              const { error } = await supabase
-                .from('profiles')
-                .update({ two_factor_enabled: newState })
-                .eq('id', user.id);
-              if (!error) {
-                setProfile({ ...profile, two_factor_enabled: newState });
-                alert(newState ? "2FA Enabled! (Demo Mode)" : "2FA Disabled");
+              if (profile?.two_factor_enabled) {
+                const { error } = await supabase
+                  .from("profiles")
+                  .update({ two_factor_enabled: false })
+                  .eq("id", user.id);
+                if (!error) {
+                  setProfile({ ...profile, two_factor_enabled: false });
+                  showToast("2FA Disabled", "info");
+                }
+              } else {
+                setIs2FAShowing(true);
               }
             }}
             className="w-full flex items-center justify-between p-4 rounded-2xl border-2 border-gray-100 hover:border-indigo-200 hover:bg-indigo-50/50 transition-all group"
           >
             <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-xl transition-colors ${profile?.two_factor_enabled ? 'bg-emerald-100' : 'bg-gray-100 group-hover:bg-indigo-100'}`}>
-                <Lock className={`w-4 h-4 ${profile?.two_factor_enabled ? 'text-emerald-600' : 'text-gray-400 group-hover:text-indigo-600'}`} />
+              <div
+                className={`p-2 rounded-xl transition-colors ${
+                  profile?.two_factor_enabled
+                    ? "bg-emerald-100"
+                    : "bg-gray-100 group-hover:bg-indigo-100"
+                }`}
+              >
+                <Lock
+                  className={`w-4 h-4 ${
+                    profile?.two_factor_enabled
+                      ? "text-emerald-600"
+                      : "text-gray-400 group-hover:text-indigo-600"
+                  }`}
+                />
               </div>
               <div className="text-left">
-                <p className="font-bold text-gray-800">Two-Factor Authentication</p>
+                <p className="font-bold text-gray-800">
+                  Two-Factor Authentication
+                </p>
                 <p className="text-xs text-gray-400 font-medium">
-                  {profile?.two_factor_enabled ? 'Currently Enabled' : 'Add an extra layer of security'}
+                  {profile?.two_factor_enabled
+                    ? "Currently Enabled"
+                    : "Add an extra layer of security"}
                 </p>
               </div>
             </div>
-            <div className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${profile?.two_factor_enabled ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-100 text-gray-400'}`}>
-              {profile?.two_factor_enabled ? 'ON' : 'OFF'}
+            <div
+              className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
+                profile?.two_factor_enabled
+                  ? "bg-emerald-100 text-emerald-600"
+                  : "bg-gray-100 text-gray-400"
+              }`}
+            >
+              {profile?.two_factor_enabled ? "ON" : "OFF"}
             </div>
           </button>
         </div>
@@ -264,10 +339,12 @@ export default function SettingsPage() {
           <p className="text-indigo-100 text-xs font-medium mb-6">
             Invite a friend to SpendSafe and help them avoid tax season panic.
           </p>
-          <button 
+          <button
             onClick={() => {
-              navigator.clipboard.writeText(`Hey! Check out SpendSafe - it's the financial copilot I use for my freelance income: ${window.location.origin}`);
-              alert("Referral link copied to clipboard! 🚀");
+              navigator.clipboard.writeText(
+                `Hey! Check out SpendSafe - it's the financial copilot I use for my freelance income: ${window.location.origin}`
+              );
+              showToast("Referral link copied to clipboard! 🚀", "success");
             }}
             className="w-full bg-white text-indigo-600 font-black py-4 rounded-[1.5rem] flex items-center justify-center gap-2 hover:bg-indigo-50 transition-all active:scale-95"
           >
@@ -280,9 +357,9 @@ export default function SettingsPage() {
           onClick={handleSave}
           disabled={loading}
           className={`w-full py-5 font-black rounded-[1.5rem] flex items-center justify-center gap-2 transition-all shadow-lg active:scale-95 ${
-            saved 
-              ? 'bg-emerald-600 text-white shadow-emerald-100' 
-              : 'bg-indigo-600 text-white shadow-indigo-100 hover:bg-indigo-700'
+            saved
+              ? "bg-emerald-600 text-white shadow-emerald-100"
+              : "bg-indigo-600 text-white shadow-indigo-100 hover:bg-indigo-700"
           }`}
         >
           {loading ? (
@@ -290,7 +367,9 @@ export default function SettingsPage() {
           ) : saved ? (
             <>✓ Saved!</>
           ) : (
-            <><Save className="w-5 h-5" /> Save Changes</>
+            <>
+              <Save className="w-5 h-5" /> Save Changes
+            </>
           )}
         </button>
 
@@ -303,11 +382,12 @@ export default function SettingsPage() {
         </button>
 
         <p className="text-[10px] text-gray-300 text-center font-medium italic pt-2">
-          This is a planning tool, not tax advice. Consult a CPA for personalized guidance.
+          This is a planning tool, not tax advice. Consult a CPA for
+          personalized guidance.
         </p>
-        
+
         {/* Trust Center Trigger */}
-        <button 
+        <button
           onClick={() => setShowTrustCenter(true)}
           className="w-full text-[10px] font-black text-indigo-400 uppercase tracking-widest hover:text-indigo-600 transition-colors pt-4"
         >
@@ -320,6 +400,31 @@ export default function SettingsPage() {
           <TrustCenter onBack={() => setShowTrustCenter(false)} />
         </div>
       )}
+
+      <SecuritySetup
+        isOpen={is2FAShowing}
+        onClose={() => setIs2FAShowing(false)}
+        userEmail={user?.email}
+        onComplete={async () => {
+          if (!user) return;
+          try {
+            const { error } = await supabase
+              .from("profiles")
+              .update({ two_factor_enabled: true })
+              .eq("id", user.id);
+            if (error) throw error;
+            setProfile({ ...profile, two_factor_enabled: true });
+            setIs2FAShowing(false);
+            showToast(
+              "2FA Secured! Your account is now protected 🛡️",
+              "success"
+            );
+          } catch (err) {
+            console.error("Failed to enable 2FA:", err);
+            showToast("Failed to enable 2FA. Please try again.", "error");
+          }
+        }}
+      />
     </AppShell>
   );
 }

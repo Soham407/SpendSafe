@@ -1,23 +1,33 @@
-'use client';
+"use client";
 
-import React from 'react';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { Home, Clock, Settings, Bell, DollarSign, PiggyBank } from 'lucide-react';
+import React from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import {
+  Home,
+  Clock,
+  Settings,
+  Bell,
+  DollarSign,
+  PiggyBank,
+} from "lucide-react";
 
 interface AppShellProps {
   children: React.ReactNode;
   pendingCount?: number;
 }
 
-export const AppShell: React.FC<AppShellProps> = ({ children, pendingCount = 0 }) => {
+export const AppShell: React.FC<AppShellProps> = ({
+  children,
+  pendingCount = 0,
+}) => {
   const pathname = usePathname();
-  
+
   const navItems = [
-    { href: '/', icon: Home, label: 'Home' },
-    { href: '/vaults', icon: PiggyBank, label: 'Vaults' },
-    { href: '/history', icon: Clock, label: 'History' },
-    { href: '/settings', icon: Settings, label: 'Setup' },
+    { href: "/", icon: Home, label: "Home" },
+    { href: "/vaults", icon: PiggyBank, label: "Vaults" },
+    { href: "/history", icon: Clock, label: "History" },
+    { href: "/settings", icon: Settings, label: "Setup" },
   ];
 
   return (
@@ -29,9 +39,14 @@ export const AppShell: React.FC<AppShellProps> = ({ children, pendingCount = 0 }
             <div className="bg-indigo-600 p-2 rounded-2xl shadow-xl shadow-indigo-100 rotate-3">
               <DollarSign className="w-5 h-5 text-white" />
             </div>
-            <h1 className="font-black text-xl tracking-tight text-gray-900">SpendSafe</h1>
+            <h1 className="font-black text-xl tracking-tight text-gray-900">
+              SpendSafe
+            </h1>
           </div>
-          <button className="relative p-2.5 text-gray-500 hover:text-indigo-600 transition-all bg-gray-50 rounded-2xl hover:bg-indigo-50 active:scale-90">
+          <button
+            className="relative p-2.5 text-gray-500 hover:text-indigo-600 transition-all bg-gray-50 rounded-2xl hover:bg-indigo-50 active:scale-90"
+            aria-label="Notifications"
+          >
             <Bell className="w-5 h-5" />
             {pendingCount > 0 && (
               <span className="absolute top-2 right-2 w-3 h-3 bg-red-500 rounded-full border-2 border-white animate-pulse"></span>
@@ -50,13 +65,20 @@ export const AppShell: React.FC<AppShellProps> = ({ children, pendingCount = 0 }
             const isActive = pathname === item.href;
             const Icon = item.icon;
             return (
-              <Link 
+              <Link
                 key={item.href}
                 href={item.href}
-                className={`flex flex-col items-center gap-1.5 transition-all ${isActive ? 'text-indigo-600 scale-110' : 'text-gray-400 hover:text-gray-600'}`}
+                aria-current={isActive ? "page" : undefined}
+                className={`flex flex-col items-center gap-1.5 transition-all ${
+                  isActive
+                    ? "text-indigo-600 scale-110"
+                    : "text-gray-400 hover:text-gray-600"
+                }`}
               >
                 <Icon className="w-6 h-6 stroke-[2.5px]" />
-                <span className="text-[10px] font-black uppercase tracking-widest">{item.label}</span>
+                <span className="text-[10px] font-black uppercase tracking-widest">
+                  {item.label}
+                </span>
               </Link>
             );
           })}

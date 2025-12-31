@@ -1,8 +1,17 @@
-export { IncomeCard } from './IncomeCard';
-export { PanicButton } from './PanicButton';
-export { SafeToSpend } from './SafeToSpend';
-export { ConfirmationModal } from './ConfirmationModal';
-export { AppShell } from './AppShell';
-export { TrendChart } from './TrendChart';
-export { AuditReadiness } from './AuditReadiness';
-
+export { IncomeCard } from "./IncomeCard";
+export { PanicButton } from "./PanicButton";
+export { SafeToSpend } from "./SafeToSpend";
+export { ConfirmationModal } from "./ConfirmationModal";
+export { AppShell } from "./AppShell";
+export { TrendChart } from "./TrendChart";
+export { AuditReadiness } from "./AuditReadiness";
+export { AiCopilot } from "./AiCopilot";
+export { VoiceCopilot } from "./VoiceCopilot";
+export { Feedback } from "./Feedback";
+export { PlaidLink } from "./PlaidLink";
+export { IncomeConfirmation } from "./IncomeConfirmation";
+export { SecuritySetup } from "./SecuritySetup";
+export { ShameReport } from "./ShameReport";
+export { TrustCenter } from "./TrustCenter";
+export { VideoExplainer } from "./VideoExplainer";
+export { ToastProvider, useToast } from "./Toast";
