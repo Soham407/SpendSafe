@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS plaid_items (
   access_token TEXT NOT NULL,
   institution_id TEXT,
   institution_name TEXT,
+  environment TEXT DEFAULT 'sandbox', -- 'sandbox', 'development', 'production'
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
 );

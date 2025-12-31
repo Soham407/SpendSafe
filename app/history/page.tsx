@@ -5,7 +5,10 @@ import { FileText, DollarSign, TrendingUp, Calendar, Loader2, CheckCircle2, Cloc
 import { createBrowserClient } from "@supabase/auth-helpers-nextjs";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
+import { TrendChart } from "@/components/TrendChart";
+import { AuditReadiness } from "@/components/AuditReadiness";
 import { formatCurrency } from "@/lib/utils";
+import Papa from "papaparse";
 
 export default function HistoryPage() {
   const [incomeEvents, setIncomeEvents] = useState<any[]>([]);
@@ -43,11 +46,14 @@ export default function HistoryPage() {
   const totals = incomeEvents.reduce((acc, event) => {
     acc.totalIncome += Number(event.amount);
     event.recommended_moves?.forEach((move: any) => {
-      if (move.bucket_name === 'Tax') acc.totalTax += Number(move.amount_to_move);
+      if (move.bucket_name === 'Tax') {
+        acc.totalTax += Number(move.amount_to_move);
+        if (move.completed_at) acc.actualTaxSaved += Number(move.amount_to_move);
+      }
       if (move.bucket_name === 'Retirement') acc.totalRetirement += Number(move.amount_to_move);
     });
     return acc;
-  }, { totalIncome: 0, totalTax: 0, totalRetirement: 0 });
+  }, { totalIncome: 0, totalTax: 0, totalRetirement: 0, actualTaxSaved: 0 });
 
   // Weekly Snapshot Logic (last 7 days)
   const lastWeek = new Date();
@@ -124,6 +130,17 @@ export default function HistoryPage() {
           </div>
         </div>
 
+        {/* Audit Readiness Widget */}
+        <AuditReadiness
+          totalIncome={totals.totalIncome}
+          totalTaxSaved={totals.actualTaxSaved}
+          documentedTransactions={incomeEvents.filter(e => e.status === 'completed').length}
+          totalTransactions={incomeEvents.length}
+        />
+
+        {/* Trend Chart */}
+        <TrendChart incomeEvents={incomeEvents} title="Income & Savings Trends" />
+
         {/* History List */}
         <div className="space-y-3">
           <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-2">
@@ -190,7 +207,28 @@ export default function HistoryPage() {
         {/* Export Button */}
         <button 
           onClick={() => {
-            alert("CSV Export feature coming soon!");
+            const csvData = incomeEvents.map(event => {
+              const tax = event.recommended_moves?.find((m: any) => m.bucket_name === 'Tax')?.amount_to_move || 0;
+              const retirement = event.recommended_moves?.find((m: any) => m.bucket_name === 'Retirement')?.amount_to_move || 0;
+              return {
+                Date: new Date(event.detected_at).toLocaleDateString(),
+                Source: event.description || 'Income',
+                Amount: event.amount,
+                'Tax Savings': tax,
+                'Retirement Savings': retirement,
+                Status: event.status
+              };
+            });
+            const csv = Papa.unparse(csvData);
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            const url = URL.createObjectURL(blob);
+            link.setAttribute("href", url);
+            link.setAttribute("download", `spendsafe_history_${new Date().getFullYear()}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
           }}
           className="w-full py-4 bg-white border-2 border-gray-100 text-gray-500 font-bold rounded-[1.5rem] flex items-center justify-center gap-2 hover:border-indigo-200 hover:text-indigo-600 transition-all"
         >

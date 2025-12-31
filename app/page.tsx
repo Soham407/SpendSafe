@@ -28,6 +28,7 @@ export default function Dashboard() {
   const [profile, setProfile] = useState<any>(null);
   const [incomeEvents, setIncomeEvents] = useState<any[]>([]);
   const [summary, setSummary] = useState<any>(null);
+  const [bankBalance, setBankBalance] = useState<number>(0);
   const [pendingConfirmations, setPendingConfirmations] = useState<any[]>([]);
   const [showPlaidLink, setShowPlaidLink] = useState(false);
   const [showMathDetail, setShowMathDetail] = useState(false);
@@ -65,8 +66,8 @@ export default function Dashboard() {
       .order('detected_at', { ascending: false });
     
     // Separate pending confirmations from confirmed events
-    const pending = events?.filter(e => e.status === 'pending_confirmation') || [];
-    const confirmed = events?.filter(e => e.status !== 'pending_confirmation') || [];
+    const pending = events?.filter((e: any) => e.status === 'pending_confirmation') || [];
+    const confirmed = events?.filter((e: any) => e.status !== 'pending_confirmation') || [];
     
     setPendingConfirmations(pending);
     setIncomeEvents(confirmed);
@@ -75,6 +76,17 @@ export default function Dashboard() {
     const res = await fetch(`/api/summary?user_id=${userId}`);
     const summaryData = await res.json();
     setSummary(summaryData);
+
+    // Fetch real bank balance
+    try {
+      const balanceRes = await fetch(`/api/plaid/balance?user_id=${userId}`);
+      const balanceData = await balanceRes.json();
+      if (balanceData.total_balance !== undefined) {
+        setBankBalance(balanceData.total_balance);
+      }
+    } catch (err) {
+      console.error('Failed to fetch balance:', err);
+    }
 
     setLoading(false);
   }, [supabase]);
@@ -197,10 +209,8 @@ export default function Dashboard() {
       .reduce((sum: number, m: any) => sum + Number(m.amount_to_move), 0) || 0);
   }, 0);
 
-  // Mock total balance for Phase 0 (in real app, this would come from Plaid or user input)
-  const totalBalance = 10000; 
-  const safeToSpend = totalBalance - pendingTax - pendingRetirement;
-  const pendingCount = incomeEvents.filter(e => e.status === 'pending_action').length;
+  const safeToSpend = bankBalance - pendingTax - pendingRetirement - (profile?.minimum_buffer || 1000);
+  const pendingCount = incomeEvents.filter((e: any) => e.status === 'pending_action').length;
 
   useEffect(() => {
     if (pendingTax > 2000) {
@@ -223,8 +233,9 @@ export default function Dashboard() {
         <div className="relative">
           <SafeToSpend 
             amount={safeToSpend}
-            bankBalance={totalBalance}
+            bankBalance={bankBalance}
             totalLiabilities={pendingTax + pendingRetirement}
+            minimumBuffer={profile?.minimum_buffer || 1000}
             showMathDetail={showMathDetail}
             onToggleMath={() => setShowMathDetail(!showMathDetail)}
           />
@@ -240,7 +251,7 @@ export default function Dashboard() {
         <AiCopilot 
           safeToSpend={safeToSpend} 
           taxLiabilities={pendingTax} 
-          savingsTotal={totalBalance - safeToSpend} 
+          savingsTotal={bankBalance - safeToSpend} 
         />
 
         {/* Panic Button Section */}
@@ -434,7 +445,7 @@ export default function Dashboard() {
       <VoiceCopilot 
         isOpen={isVoiceOpen} 
         onClose={() => setIsVoiceOpen(false)} 
-        context={{ safeToSpend, taxLiabilities: pendingTax, totalSavings: totalBalance - safeToSpend }}
+        context={{ safeToSpend, taxLiabilities: pendingTax, totalSavings: bankBalance - safeToSpend }}
       />
 
       <ShameReport 

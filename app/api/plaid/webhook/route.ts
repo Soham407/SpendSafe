@@ -1,25 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Configuration, PlaidApi, PlaidEnvironments } from 'plaid';
 import { supabase } from '@/lib/supabase';
-
-const configuration = new Configuration({
-    basePath: PlaidEnvironments.sandbox,
-    baseOptions: {
-        headers: {
-            'PLAID-CLIENT-ID': process.env.PLAID_CLIENT_ID!,
-            'PLAID-SECRET': process.env.PLAID_SECRET!,
-        },
-    },
-});
-
-const plaidClient = new PlaidApi(configuration);
+import { plaidClient, plaidEnvironment, isProduction } from '@/lib/plaid';
 
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
         const { webhook_type, webhook_code, item_id } = body;
 
-        console.log('Plaid webhook received:', { webhook_type, webhook_code, item_id });
+        // Webhook verification for production security
+        // In production, verify the webhook using Plaid's verification endpoint
+        if (isProduction) {
+            const plaidVerificationHeader = request.headers.get('plaid-verification');
+            if (plaidVerificationHeader) {
+                try {
+                    // Plaid's webhook verification checks the signature
+                    const verification = await plaidClient.webhookVerificationKeyGet({
+                        key_id: plaidVerificationHeader,
+                    });
+                    console.log('[Plaid] Webhook verified:', verification.data.key.expired_at);
+                } catch (verifyError) {
+                    console.error('[Plaid] Webhook verification failed:', verifyError);
+                    return NextResponse.json({ error: 'Webhook verification failed' }, { status: 401 });
+                }
+            }
+        }
+
+        console.log(`[Plaid] Webhook received (${plaidEnvironment}):`, { webhook_type, webhook_code, item_id });
 
         // Handle transaction updates
         if (webhook_type === 'TRANSACTIONS') {
@@ -76,6 +82,14 @@ export async function POST(request: NextRequest) {
 
                     if (error && error.code !== '23505') { // Ignore duplicate key errors
                         console.error('Error inserting income event:', error);
+                    } else if (!error) {
+                        // Trigger Nudge for new detections
+                        try {
+                            const { NotificationService } = await import('@/lib/notifications');
+                            await NotificationService.nudgeIncomeAction(plaidItem.user_id, Math.abs(txn.amount), txn.name, txn.transaction_id);
+                        } catch (nudgeError) {
+                            console.error('Failed to send nudge:', nudgeError);
+                        }
                     }
                 }
 

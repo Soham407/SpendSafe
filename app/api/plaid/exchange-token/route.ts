@@ -1,18 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Configuration, PlaidApi, PlaidEnvironments } from 'plaid';
 import { supabase } from '@/lib/supabase';
-
-const configuration = new Configuration({
-    basePath: PlaidEnvironments.sandbox,
-    baseOptions: {
-        headers: {
-            'PLAID-CLIENT-ID': process.env.PLAID_CLIENT_ID!,
-            'PLAID-SECRET': process.env.PLAID_SECRET!,
-        },
-    },
-});
-
-const plaidClient = new PlaidApi(configuration);
+import { plaidClient, plaidEnvironment, isProduction } from '@/lib/plaid';
 
 export async function POST(request: NextRequest) {
     try {
@@ -26,6 +14,8 @@ export async function POST(request: NextRequest) {
             );
         }
 
+        console.log(`[Plaid] Exchanging token in ${plaidEnvironment} mode`);
+
         // Exchange public token for access token
         const response = await plaidClient.itemPublicTokenExchange({
             public_token,
@@ -34,7 +24,7 @@ export async function POST(request: NextRequest) {
         const access_token = response.data.access_token;
         const item_id = response.data.item_id;
 
-        // Store access token in database (encrypted via Supabase RLS)
+        // Store access token in database
         const { error: dbError } = await supabase
             .from('plaid_items')
             .insert({
@@ -43,6 +33,7 @@ export async function POST(request: NextRequest) {
                 access_token,
                 institution_id: institution?.institution_id,
                 institution_name: institution?.name,
+                environment: plaidEnvironment,
             });
 
         if (dbError) {
@@ -64,10 +55,14 @@ export async function POST(request: NextRequest) {
             await supabase.from('plaid_accounts').insert(accountRecords);
         }
 
+        console.log(`[Plaid] Successfully connected ${accounts?.length || 0} accounts for user ${user_id}`);
+
         return NextResponse.json({
             success: true,
             item_id,
             accounts_connected: accounts?.length || 0,
+            environment: plaidEnvironment,
+            is_production: isProduction,
         });
     } catch (error: any) {
         console.error('Error exchanging token:', error);

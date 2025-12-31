@@ -1,17 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Configuration, PlaidApi, PlaidEnvironments, Products, CountryCode } from 'plaid';
-
-const configuration = new Configuration({
-  basePath: PlaidEnvironments.sandbox, // Change to 'development' or 'production' when ready
-  baseOptions: {
-    headers: {
-      'PLAID-CLIENT-ID': process.env.PLAID_CLIENT_ID!,
-      'PLAID-SECRET': process.env.PLAID_SECRET!,
-    },
-  },
-});
-
-const plaidClient = new PlaidApi(configuration);
+import { Products, CountryCode } from 'plaid';
+import { plaidClient, plaidEnvironment } from '@/lib/plaid';
 
 export async function POST(request: NextRequest) {
   try {
@@ -25,11 +14,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    console.log(`[Plaid] Creating link token in ${plaidEnvironment} mode`);
+
     const response = await plaidClient.linkTokenCreate({
       user: {
         client_user_id: user_id,
       },
-      client_name: 'SafeSpend',
+      client_name: 'SpendSafe',
       products: [Products.Transactions],
       country_codes: [CountryCode.Us],
       language: 'en',
@@ -37,7 +28,10 @@ export async function POST(request: NextRequest) {
       redirect_uri: process.env.PLAID_REDIRECT_URI,
     });
 
-    return NextResponse.json({ link_token: response.data.link_token });
+    return NextResponse.json({
+      link_token: response.data.link_token,
+      environment: plaidEnvironment,
+    });
   } catch (error: any) {
     console.error('Error creating link token:', error);
     return NextResponse.json(

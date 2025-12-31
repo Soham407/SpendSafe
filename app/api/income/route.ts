@@ -57,6 +57,14 @@ export async function POST(request: NextRequest) {
             throw movesError;
         }
 
+        // Trigger Nudge (Phase 2)
+        try {
+            const { NotificationService } = await import('@/lib/notifications');
+            await NotificationService.nudgeIncomeAction(user_id, amount, description || 'Income', incomeEvent.id);
+        } catch (nudgeError) {
+            console.error('Failed to send nudge:', nudgeError);
+        }
+
         return NextResponse.json({
             success: true,
             income_event: incomeEvent,

@@ -8,6 +8,7 @@ interface SafeToSpendProps {
   amount: number;
   bankBalance: number;
   totalLiabilities: number;
+  minimumBuffer: number;
   showMathDetail: boolean;
   onToggleMath: () => void;
   onOpenVoice?: () => void;
@@ -17,6 +18,7 @@ export const SafeToSpend: React.FC<SafeToSpendProps> = ({
   amount, 
   bankBalance, 
   totalLiabilities,
+  minimumBuffer,
   showMathDetail,
   onToggleMath,
   onOpenVoice
@@ -57,6 +59,10 @@ export const SafeToSpend: React.FC<SafeToSpendProps> = ({
             <div className="flex justify-between items-center text-sm font-medium text-red-300">
               <span>Less Unpaid Tax Liabilities</span>
               <span className="font-mono">-{formatCurrency(totalLiabilities)}</span>
+            </div>
+            <div className="flex justify-between items-center text-sm font-medium text-amber-300">
+              <span>Less Minimum Bank Buffer</span>
+              <span className="font-mono">-{formatCurrency(minimumBuffer)}</span>
             </div>
             <div className="h-px bg-white/10 my-2"></div>
             <div className="flex justify-between items-center text-base font-black">

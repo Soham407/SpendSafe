@@ -1,18 +1,23 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { PiggyBank, TrendingUp, Loader2, CheckCircle2, ArrowRight, Landmark, Shield } from "lucide-react";
+import React, { useState, useEffect, useCallback } from "react";
+import { PiggyBank, TrendingUp, Loader2, CheckCircle2, ArrowRight, Landmark, Shield, AlertCircle, ExternalLink } from "lucide-react";
 import { createBrowserClient } from "@supabase/auth-helpers-nextjs";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { formatCurrency } from "@/lib/utils";
+import confetti from "canvas-confetti";
 
 export default function VaultsPage() {
   const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<any>(null);
   const [taxSaved, setTaxSaved] = useState(0);
   const [retirementSaved, setRetirementSaved] = useState(0);
   const [taxTarget, setTaxTarget] = useState(0);
   const [retirementTarget, setRetirementTarget] = useState(0);
+  const [bankBalance, setBankBalance] = useState(0);
+  const [pendingMoves, setPendingMoves] = useState<any[]>([]);
+  const [confirmingMoveId, setConfirmingMoveId] = useState<string | null>(null);
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -20,48 +25,97 @@ export default function VaultsPage() {
   );
   const router = useRouter();
 
+  const fetchData = useCallback(async (userId: string) => {
+    // 1. Fetch bank balance
+    try {
+      const balanceRes = await fetch(`/api/plaid/balance?user_id=${userId}`);
+      const balanceData = await balanceRes.json();
+      if (balanceData.total_balance !== undefined) {
+        setBankBalance(balanceData.total_balance);
+      }
+    } catch (err) {
+      console.error('Failed to fetch balance:', err);
+    }
+
+    // 2. Fetch income events and moves
+    const { data: events } = await supabase
+      .from('income_events')
+      .select(`
+        *,
+        recommended_moves (*)
+      `)
+      .eq('user_id', userId);
+
+    let taxCompleted = 0;
+    let retirementCompleted = 0;
+    let taxTotal = 0;
+    let retirementTotal = 0;
+    const pending: any[] = [];
+
+    events?.forEach((event: any) => {
+      event.recommended_moves?.forEach((move: any) => {
+        if (move.bucket_name === 'Tax') {
+          taxTotal += Number(move.amount_to_move);
+          if (move.completed_at) {
+            taxCompleted += Number(move.amount_to_move);
+          } else {
+            pending.push({ ...move, source: event.description, date: event.detected_at });
+          }
+        }
+        if (move.bucket_name === 'Retirement') {
+          retirementTotal += Number(move.amount_to_move);
+          if (move.completed_at) {
+            retirementCompleted += Number(move.amount_to_move);
+          } else {
+            pending.push({ ...move, source: event.description, date: event.detected_at });
+          }
+        }
+      });
+    });
+
+    setTaxSaved(taxCompleted);
+    setRetirementSaved(retirementCompleted);
+    setTaxTarget(taxTotal);
+    setRetirementTarget(retirementTotal);
+    setPendingMoves(pending.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+    setLoading(false);
+  }, [supabase]);
+
   useEffect(() => {
-    const fetchData = async () => {
+    const checkUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         router.push("/login");
-        return;
+      } else {
+        setUser(session.user);
+        fetchData(session.user.id);
       }
+    };
+    checkUser();
+  }, [supabase, router, fetchData]);
 
-      const { data: events } = await supabase
-        .from('income_events')
-        .select(`
-          *,
-          recommended_moves (*)
-        `)
-        .eq('user_id', session.user.id);
-
-      let taxCompleted = 0;
-      let retirementCompleted = 0;
-      let taxTotal = 0;
-      let retirementTotal = 0;
-
-      events?.forEach((event: any) => {
-        event.recommended_moves?.forEach((move: any) => {
-          if (move.bucket_name === 'Tax') {
-            taxTotal += Number(move.amount_to_move);
-            if (move.completed_at) taxCompleted += Number(move.amount_to_move);
-          }
-          if (move.bucket_name === 'Retirement') {
-            retirementTotal += Number(move.amount_to_move);
-            if (move.completed_at) retirementCompleted += Number(move.amount_to_move);
-          }
-        });
+  const handleMoveIt = async (moveId: string) => {
+    setConfirmingMoveId(moveId);
+    try {
+      const res = await fetch(`/api/moves/${moveId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ completion_method: 'manual_transfer', confirmed: true }),
       });
 
-      setTaxSaved(taxCompleted);
-      setRetirementSaved(retirementCompleted);
-      setTaxTarget(taxTotal);
-      setRetirementTarget(retirementTotal);
-      setLoading(false);
-    };
-    fetchData();
-  }, [supabase, router]);
+      if (res.ok) {
+        confetti({
+          particleCount: 150,
+          spread: 70,
+          origin: { y: 0.6 }
+        });
+        await fetchData(user.id);
+      }
+    } catch (err) {
+      console.error('Error confirming move:', err);
+    } finally {
+      setConfirmingMoveId(null);
+    }
+  };
 
   if (loading) {
     return (
@@ -75,14 +129,22 @@ export default function VaultsPage() {
 
   const taxPercent = taxTarget > 0 ? (taxSaved / taxTarget) * 100 : 0;
   const retirementPercent = retirementTarget > 0 ? (retirementSaved / retirementTarget) * 100 : 0;
+  const totalLiabilities = (taxTarget - taxSaved) + (retirementTarget - retirementSaved);
+  const safeToSpend = bankBalance - totalLiabilities;
 
   return (
     <AppShell>
       <div className="space-y-6 animate-in pb-12">
         {/* Header */}
-        <div className="space-y-1">
-          <h1 className="text-2xl font-black text-gray-900">Your Vaults</h1>
-          <p className="text-sm text-gray-400 font-medium">Track your savings progress</p>
+        <div className="flex justify-between items-end">
+          <div className="space-y-1">
+            <h1 className="text-2xl font-black text-gray-900">Your Vaults</h1>
+            <p className="text-sm text-gray-400 font-medium">Safe to Spend: <span className="text-emerald-600 font-bold">{formatCurrency(safeToSpend)}</span></p>
+          </div>
+          <div className="text-right">
+            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Bank Balance</p>
+            <p className="text-lg font-black text-gray-900">{formatCurrency(bankBalance)}</p>
+          </div>
         </div>
 
         {/* Tax Vault */}
@@ -116,13 +178,6 @@ export default function VaultsPage() {
                 {taxPercent.toFixed(0)}% of goal reached
               </p>
             </div>
-
-            {taxPercent >= 100 && (
-              <div className="flex items-center justify-center gap-2 bg-white/20 py-3 rounded-2xl">
-                <CheckCircle2 className="w-5 h-5" />
-                <span className="font-black">Goal Achieved! 🎉</span>
-              </div>
-            )}
           </div>
         </div>
 
@@ -157,37 +212,74 @@ export default function VaultsPage() {
                 {retirementPercent.toFixed(0)}% of goal reached
               </p>
             </div>
+          </div>
+        </div>
 
-            {retirementPercent >= 100 && (
-              <div className="flex items-center justify-center gap-2 bg-white/20 py-3 rounded-2xl">
-                <CheckCircle2 className="w-5 h-5" />
-                <span className="font-black">Goal Achieved! 🎉</span>
+        {/* Pending Actions */}
+        <section className="space-y-4">
+          <div className="flex items-center justify-between px-2">
+            <h3 className="font-black text-gray-800 text-[10px] uppercase tracking-[0.2em] flex items-center gap-2">
+              <AlertCircle className="w-3.5 h-3.5 text-amber-500" />
+              Pending Movements
+            </h3>
+            {pendingMoves.length > 0 && (
+              <span className="text-[10px] font-black text-amber-600 bg-amber-100 px-2 py-1 rounded-md">
+                {pendingMoves.length} Actions
+              </span>
+            )}
+          </div>
+
+          <div className="space-y-3">
+            {pendingMoves.map((move) => (
+              <div key={move.id} className="bg-white border-2 border-gray-50 p-4 rounded-3xl flex items-center justify-between group hover:border-indigo-100 transition-all">
+                <div className="flex items-center gap-4">
+                  <div className={`p-3 rounded-2xl ${move.bucket_name === 'Tax' ? 'bg-red-50 text-red-600' : 'bg-indigo-50 text-indigo-600'}`}>
+                    {move.bucket_name === 'Tax' ? <Shield className="w-5 h-5" /> : <TrendingUp className="w-5 h-5" />}
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{move.bucket_name} Move</p>
+                    <p className="font-black text-gray-900">{formatCurrency(move.amount_to_move)}</p>
+                    <p className="text-[11px] text-gray-400 font-medium">From {move.source}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleMoveIt(move.id)}
+                  disabled={confirmingMoveId === move.id}
+                  className="bg-gray-900 text-white px-4 py-3 rounded-2xl text-xs font-black flex items-center gap-2 hover:bg-indigo-600 active:scale-95 transition-all disabled:opacity-50"
+                >
+                  {confirmingMoveId === move.id ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <>Move it <ArrowRight className="w-3.5 h-3.5" /></>
+                  )}
+                </button>
+              </div>
+            ))}
+
+            {pendingMoves.length === 0 && (
+              <div className="bg-emerald-50 border-2 border-dashed border-emerald-100 p-8 rounded-3xl text-center">
+                <CheckCircle2 className="w-8 h-8 text-emerald-400 mx-auto mb-2" />
+                <p className="text-emerald-700 font-bold text-sm">All caught up!</p>
+                <p className="text-emerald-600/60 text-xs font-medium">Your vaults are fully funded based on your income.</p>
               </div>
             )}
           </div>
-        </div>
+        </section>
 
         {/* Why Vaults Matter */}
         <div className="bg-gray-50 border-2 border-gray-100 p-6 rounded-[2.5rem]">
           <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">
-            Why Vaults Matter
+            The Automator
           </h3>
           <p className="text-sm text-gray-600 font-medium leading-relaxed">
-            As a 1099 freelancer, you're responsible for your own taxes. These vaults represent money 
-            you should set aside from each payment to avoid surprises at tax time.
+            Every time client income lands, we calculate exactly what's yours to keep and what belongs to your future self. 
+            Confirming a move marks it as "safe-locked" in your vaults.
           </p>
-          <p className="text-[10px] text-gray-400 mt-4 italic">
-            Tip: Open a separate high-yield savings account for each vault.
-          </p>
+          <div className="mt-4 pt-4 border-t border-gray-200 flex items-center justify-between">
+            <span className="text-[10px] text-gray-400 font-black uppercase">Stripe Treasury integration</span>
+            <span className="text-[10px] font-bold text-indigo-400">Coming Soon</span>
+          </div>
         </div>
-
-        {/* Quick Actions */}
-        <button 
-          onClick={() => router.push('/')}
-          className="w-full py-5 bg-gray-900 text-white font-black rounded-[1.5rem] flex items-center justify-center gap-2 hover:bg-black active:scale-95 transition-all shadow-xl shadow-gray-100"
-        >
-          Log New Transfers <ArrowRight className="w-5 h-5" />
-        </button>
       </div>
     </AppShell>
   );

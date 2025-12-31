@@ -11,10 +11,13 @@ import { TrustCenter } from "@/components/TrustCenter";
 export default function SettingsPage() {
   const [taxRate, setTaxRate] = useState(30);
   const [retirementRate, setRetirementRate] = useState(10);
+  const [minimumBuffer, setMinimumBuffer] = useState(1000);
   const [notificationPref, setNotificationPref] = useState<'sms' | 'email' | 'both'>('email');
   const [loading, setLoading] = useState(false);
   const [saved, setSaved] = useState(false);
   const [user, setUser] = useState<any>(null);
+  const [profile, setProfile] = useState<any>(null);
+  const [phoneNumber, setPhoneNumber] = useState("");
   const [showTrustCenter, setShowTrustCenter] = useState(false);
 
   const supabase = createBrowserClient(
@@ -35,9 +38,12 @@ export default function SettingsPage() {
           .single();
         
         if (profile) {
+          setProfile(profile);
           setTaxRate(profile.tax_rate_percentage * 100);
           setRetirementRate(profile.retirement_rate_percentage * 100);
+          setMinimumBuffer(profile.minimum_buffer || 1000);
           setNotificationPref(profile.notification_preference || 'email');
+          setPhoneNumber(profile.phone_number || "");
         }
       }
     };
@@ -54,7 +60,9 @@ export default function SettingsPage() {
       .update({
         tax_rate_percentage: taxRate / 100,
         retirement_rate_percentage: retirementRate / 100,
+        minimum_buffer: minimumBuffer,
         notification_preference: notificationPref,
+        phone_number: phoneNumber,
       })
       .eq('id', user.id);
 
@@ -131,9 +139,28 @@ export default function SettingsPage() {
                 className="w-full h-2 bg-gray-100 rounded-lg appearance-none cursor-pointer accent-indigo-500"
               />
               <div className="flex justify-between text-[10px] text-gray-300 font-bold mt-1">
-                <span>0%</span>
                 <span>30%</span>
               </div>
+            </div>
+
+            <div>
+              <div className="flex justify-between items-center mb-3">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                  Minimum Bank Buffer
+                </label>
+                <div className="flex items-center gap-1">
+                  <span className="text-gray-400 text-xs">$</span>
+                  <input
+                    type="number"
+                    value={minimumBuffer}
+                    onChange={(e) => setMinimumBuffer(Number(e.target.value))}
+                    className="w-20 bg-gray-50 border-none text-right text-sm font-black text-indigo-600 focus:ring-0 p-0"
+                  />
+                </div>
+              </div>
+              <p className="text-[9px] text-gray-300 font-bold -mt-2 mb-3">
+                We'll always keep this much "Safe" regardless of taxes.
+              </p>
             </div>
           </div>
         </div>
@@ -145,7 +172,19 @@ export default function SettingsPage() {
             Notifications
           </h2>
 
-          <div className="space-y-3">
+          <div className="space-y-4">
+            <div>
+              <label className="block text-[10px] font-black mb-2 text-gray-400 uppercase tracking-widest">Phone Number (for SMS Nudges)</label>
+              <input 
+                type="tel" 
+                className="input" 
+                placeholder="+11234567890" 
+                value={phoneNumber}
+                onChange={(e) => setPhoneNumber(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-3">
             {(['email', 'sms', 'both'] as const).map((pref) => (
               <label
                 key={pref}
@@ -173,6 +212,7 @@ export default function SettingsPage() {
                 )}
               </label>
             ))}
+            </div>
           </div>
         </div>
 
@@ -183,17 +223,55 @@ export default function SettingsPage() {
             Security
           </h2>
           
-          <button className="w-full flex items-center justify-between p-4 rounded-2xl border-2 border-gray-100 hover:border-indigo-200 hover:bg-indigo-50/50 transition-all group">
+          <button 
+            onClick={async () => {
+              const newState = !profile?.two_factor_enabled;
+              const { error } = await supabase
+                .from('profiles')
+                .update({ two_factor_enabled: newState })
+                .eq('id', user.id);
+              if (!error) {
+                setProfile({ ...profile, two_factor_enabled: newState });
+                alert(newState ? "2FA Enabled! (Demo Mode)" : "2FA Disabled");
+              }
+            }}
+            className="w-full flex items-center justify-between p-4 rounded-2xl border-2 border-gray-100 hover:border-indigo-200 hover:bg-indigo-50/50 transition-all group"
+          >
             <div className="flex items-center gap-3">
-              <div className="bg-gray-100 p-2 rounded-xl group-hover:bg-indigo-100 transition-colors">
-                <Lock className="w-4 h-4 text-gray-400 group-hover:text-indigo-600" />
+              <div className={`p-2 rounded-xl transition-colors ${profile?.two_factor_enabled ? 'bg-emerald-100' : 'bg-gray-100 group-hover:bg-indigo-100'}`}>
+                <Lock className={`w-4 h-4 ${profile?.two_factor_enabled ? 'text-emerald-600' : 'text-gray-400 group-hover:text-indigo-600'}`} />
               </div>
               <div className="text-left">
                 <p className="font-bold text-gray-800">Two-Factor Authentication</p>
-                <p className="text-xs text-gray-400 font-medium">Add an extra layer of security</p>
+                <p className="text-xs text-gray-400 font-medium">
+                  {profile?.two_factor_enabled ? 'Currently Enabled' : 'Add an extra layer of security'}
+                </p>
               </div>
             </div>
-            <ChevronRight className="w-5 h-5 text-gray-300 group-hover:text-indigo-500" />
+            <div className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${profile?.two_factor_enabled ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-100 text-gray-400'}`}>
+              {profile?.two_factor_enabled ? 'ON' : 'OFF'}
+            </div>
+          </button>
+        </div>
+
+        {/* Growth */}
+        <div className="bg-indigo-600 p-6 rounded-[2.5rem] shadow-xl shadow-indigo-100 text-white overflow-hidden relative">
+          <Sparkles className="absolute top-[-10px] right-[-10px] w-24 h-24 opacity-10" />
+          <h2 className="text-lg font-black flex items-center gap-2 mb-2">
+            <Sparkles className="w-5 h-5" />
+            Spread the Wealth
+          </h2>
+          <p className="text-indigo-100 text-xs font-medium mb-6">
+            Invite a friend to SpendSafe and help them avoid tax season panic.
+          </p>
+          <button 
+            onClick={() => {
+              navigator.clipboard.writeText(`Hey! Check out SpendSafe - it's the financial copilot I use for my freelance income: ${window.location.origin}`);
+              alert("Referral link copied to clipboard! 🚀");
+            }}
+            className="w-full bg-white text-indigo-600 font-black py-4 rounded-[1.5rem] flex items-center justify-center gap-2 hover:bg-indigo-50 transition-all active:scale-95"
+          >
+            Copy Referral Link
           </button>
         </div>
 

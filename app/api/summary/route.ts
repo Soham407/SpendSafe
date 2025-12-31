@@ -67,7 +67,13 @@ export async function GET(request: NextRequest) {
                 total_income: totalIncome,
                 total_tax_should_save: totalTaxShouldSave,
                 total_tax_actually_saved: totalTaxActuallySaved,
+                updated_at: new Date().toISOString()
             };
+
+            // Cache the summary for future use
+            await supabase
+                .from('yearly_summaries')
+                .upsert(summary, { onConflict: 'user_id,year' });
         }
 
         const taxGap = (summary.total_tax_should_save || 0) - (summary.total_tax_actually_saved || 0);
